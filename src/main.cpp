@@ -11,6 +11,7 @@ const int moistureSensorPin = 34; // Digital input pin used to check the moistur
 
 double checkInterval = 3600000; // time to wait before checking the soil moisture level - default it to an hour
 int waterLevelThreshold = 380;  // threshold at which we flash the LED to warn you of a low water level in the pump tank
+int moistureThreshold = 2000;   // threshold at which to water the plant - larger numbers means more dry soil
 int emptyReservoirBlinks = 900; // how mant times the LED will flash to tell us the water tank needs topping up - default it to an hour (900 times * 2 seconds)
 int amountToPump = 2000;        // how long the pump should pump water for when the plant needs it
 
@@ -29,11 +30,13 @@ int deviceId = 1;
 int waterLevelMetricType = 1;
 int moistureMetricType = 2;
 
-HTTPClient https;
-WiFiClientSecure client;
-
 void send_metric(int metricType, int metricValue)
 {
+  HTTPClient https;
+  WiFiClientSecure client;
+
+  client.setInsecure();
+
   https.begin(client, apiUrl + "/rest/v1/" + metricsTable);
 
   https.addHeader("apikey", apiKey);
@@ -57,8 +60,6 @@ void setup()
   pinMode(ledPin, OUTPUT);
   pinMode(pumpPin, OUTPUT);
   pinMode(moistureSensorPin, INPUT);
-
-  client.setInsecure();
 
   WiFi.begin(ssid, password);
   Serial.println("Attempting to connect to wifi");
@@ -92,7 +93,7 @@ void loop()
 
   if (waterLevelValue < waterLevelThreshold)
   {
-    Serial.print("Notifying low water level");
+    Serial.println("Notifying low water level");
     for (int i = 0; i <= emptyReservoirBlinks; i++)
     {
       digitalWrite(ledPin, LOW);
@@ -107,18 +108,12 @@ void loop()
     delay(checkInterval); // wait before checking the soil moisture level
   }
 
-  // check soil moisture level
   moistureValue = analogRead(moistureSensorPin);
   Serial.print("(Analog) Soil moisture sensor is currently: ");
-  Serial.print(moistureValue);
+  Serial.println(moistureValue);
   send_metric(moistureMetricType, moistureValue);
 
-  moistureValue = digitalRead(moistureSensorPin);
-  Serial.print("(Digital) Soil moisture sensor is currently: ");
-  Serial.print(moistureValue);
-  Serial.println(" ('1' means soil is too dry and '0' means the soil is moist enough.)");
-
-  if (moistureValue == 1)
+  if (moistureValue > moistureThreshold)
   {
     digitalWrite(pumpPin, HIGH);
     Serial.println("Pump on");
